@@ -28,7 +28,7 @@ GITHUB_KEY=<your-github-personal-access-token>
 NOTION_KEY=<your-notion-api-key>
 NOTION_DATABASE_ID=<notion-database-id>
 GITHUB_REPO_OWNER=<github-owner-username>
-GITHUB_REPO_NAME=<github-repo-name>
+GITHUB_REPO_NAMES= "<github-repo-name1>, <github-repo-name2>"
 ```
 
 You can create your Notion API key [here](https://www.notion.com/my-integrations).
