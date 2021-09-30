@@ -31,13 +31,24 @@ const gitHubIssuesIdToNotionPageId = {}
  */
 setInitialGitHubToNotionIdMap().then(syncNotionDatabaseWithGitHub)
 
+let i = 0;
+setInterval(() => {
+    setInitialGitHubToNotionIdMap().then(syncNotionDatabaseWithGitHub)
+    console.log('Infinite Loop Test interval n:', i++);
+}, 10000)
+
+
 /**
  * Get and set the initial data store with issues currently in the database.
  */
 async function setInitialGitHubToNotionIdMap() {
   const currentIssues = await getIssuesFromNotionDatabase()
-  for (const { pageId, issueNumber } of currentIssues) {
-    gitHubIssuesIdToNotionPageId[issueNumber] = pageId
+  for (const { pageId, repository, issueNumber } of currentIssues) {
+    console.log("Issues in Notion DB for repository %s", repository)
+    gitHubIssuesIdToNotionPageId[repository] = {}
+  }
+  for (const { pageId, repository, issueNumber } of currentIssues) {
+    gitHubIssuesIdToNotionPageId[repository][issueNumber] = pageId;
   }
 }
 
@@ -45,7 +56,7 @@ async function syncNotionDatabaseWithGitHub() {
   // Get all issues currently in the provided GitHub repository.
   console.log("\nFetching issues from Notion DB...")
   const issues = await getGitHubIssuesForRepository()
-  console.log(`Fetched ${issues.length} issues from GitHub repository.`)
+  console.log(`Fetched issues from GitHub ${issues.length} repositories.`)
 
   // Group issues into those that need to be created or updated in the Notion database.
   const { pagesToCreate, pagesToUpdate } = getNotionOperations(issues)
@@ -85,6 +96,7 @@ async function getIssuesFromNotionDatabase() {
   return pages.map(page => {
     return {
       pageId: page.id,
+      repository: page.properties["Repository"].rich_text[0].plain_text,
       issueNumber: page.properties["Issue Number"].number,
     }
   })
@@ -99,23 +111,28 @@ async function getIssuesFromNotionDatabase() {
  * @returns {Promise<Array<{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }>>}
  */
 async function getGitHubIssuesForRepository() {
-  const issues = []
-  const iterator = octokit.paginate.iterator(octokit.rest.issues.listForRepo, {
-    owner: process.env.GITHUB_REPO_OWNER,
-    repo: process.env.GITHUB_REPO_NAME,
-    state: "all",
-    per_page: 100,
-  })
-  for await (const { data } of iterator) {
-    for (const issue of data) {
-      if (!issue.pull_request) {
-        issues.push({
-          number: issue.number,
-          title: issue.title,
-          state: issue.state,
-          comment_count: issue.comments,
-          url: issue.html_url,
-        })
+  const issues = {}
+  var repositories = process.env.GITHUB_REPO_NAMES.split(", ");
+  for (const repository of repositories){
+   console.log("Get new issues for repository %s", repository);
+   issues[repository]=[]
+    const iterator = octokit.paginate.iterator(octokit.rest.issues.listForRepo, {
+      owner: process.env.GITHUB_REPO_OWNER,
+      repo: repository,
+      state: "all",
+      per_page: 100,
+    })
+    for await (const { data } of iterator) {
+      for (const issue of data) {
+        if (!issue.pull_request) {
+          issues[repository].push({
+            number: issue.number,
+            title: issue.title,
+            state: issue.state,
+            comment_count: issue.comments,
+            url: issue.html_url,
+          })
+        }
       }
     }
   }
@@ -134,15 +151,29 @@ async function getGitHubIssuesForRepository() {
 function getNotionOperations(issues) {
   const pagesToCreate = []
   const pagesToUpdate = []
-  for (const issue of issues) {
-    const pageId = gitHubIssuesIdToNotionPageId[issue.number]
-    if (pageId) {
-      pagesToUpdate.push({
-        ...issue,
-        pageId,
-      })
-    } else {
-      pagesToCreate.push(issue)
+  if (Object.keys(issues).length != 0){
+
+    for (const  [ repository, repository_issues ] of Object.entries(issues)) {
+      for (const issue of repository_issues) {
+        issue.repository = repository
+
+        const pageIds = gitHubIssuesIdToNotionPageId[repository]
+
+        if (pageIds){
+          const pageId = pageIds[issue.number]
+
+          if (pageId) {
+            pagesToUpdate.push({
+              ...issue,
+              pageId,
+            })
+          } else {
+            pagesToCreate.push(issue)
+          }
+        } else {
+          pagesToCreate.push(issue)
+        }
+      }
     }
   }
   return { pagesToCreate, pagesToUpdate }
@@ -202,10 +233,13 @@ async function updatePages(pagesToUpdate) {
  * @param {{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }} issue
  */
 function getPropertiesFromIssue(issue) {
-  const { title, number, state, comment_count, url } = issue
+  const { title, repository, number, state, comment_count, url } = issue
   return {
     Name: {
       title: [{ type: "text", text: { content: title } }],
+    },
+    "Repository": {
+      rich_text: [{ type: "text", text: {  content: repository } }],
     },
     "Issue Number": {
       number,
