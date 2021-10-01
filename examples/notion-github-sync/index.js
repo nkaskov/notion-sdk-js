@@ -35,7 +35,7 @@ let i = 0;
 setInterval(() => {
     setInitialGitHubToNotionIdMap().then(syncNotionDatabaseWithGitHub)
     console.log('Infinite Loop Test interval n:', i++);
-}, 10000)
+}, 300000)
 
 
 /**
@@ -125,12 +125,22 @@ async function getGitHubIssuesForRepository() {
     for await (const { data } of iterator) {
       for (const issue of data) {
         if (!issue.pull_request) {
+
+          assignees = []
+          for (const assignee of issue.assignees){
+            assignees.push({name: assignee['login']})
+          }
+          if (assignees.length === 0){
+            assignees.push({name: "not assigned"})
+          }
+
           issues[repository].push({
             number: issue.number,
             title: issue.title,
             state: issue.state,
             comment_count: issue.comments,
             url: issue.html_url,
+            assignees: assignees,
           })
         }
       }
@@ -233,7 +243,7 @@ async function updatePages(pagesToUpdate) {
  * @param {{ number: number, title: string, state: "open" | "closed", comment_count: number, url: string }} issue
  */
 function getPropertiesFromIssue(issue) {
-  const { title, repository, number, state, comment_count, url } = issue
+  const { title, repository, number, assignees, state, comment_count, url } = issue
   return {
     Name: {
       title: [{ type: "text", text: { content: title } }],
@@ -243,6 +253,10 @@ function getPropertiesFromIssue(issue) {
     },
     "Issue Number": {
       number,
+    },
+    "Assignees": {
+      type: "multi_select", 
+      multi_select: assignees,
     },
     State: {
       select: { name: state },
