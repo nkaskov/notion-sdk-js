@@ -61,6 +61,12 @@ import {
   SearchParameters,
   SearchResponse,
   search,
+  GetSelfParameters,
+  GetSelfResponse,
+  getSelf,
+  GetPagePropertyParameters,
+  GetPagePropertyResponse,
+  getPageProperty,
 } from "./api-endpoints"
 import nodeFetch from "node-fetch"
 import {
@@ -100,7 +106,7 @@ export default class Client {
   #agent: Agent | undefined
   #userAgent: string
 
-  static readonly defaultNotionVersion = "2021-08-16"
+  static readonly defaultNotionVersion = "2022-02-22"
 
   public constructor(options?: ClientOptions) {
     this.#auth = options?.auth
@@ -401,6 +407,22 @@ export default class Client {
         auth: args?.auth,
       })
     },
+    properties: {
+      /**
+       * Retrieve page property
+       */
+      retrieve: (
+        args: WithAuth<GetPagePropertyParameters>
+      ): Promise<GetPagePropertyResponse> => {
+        return this.request<GetPagePropertyResponse>({
+          path: getPageProperty.path(args),
+          method: getPageProperty.method,
+          query: pick(args, getPageProperty.queryParams),
+          body: pick(args, getPageProperty.bodyParams),
+          auth: args?.auth,
+        })
+      },
+    },
   }
 
   public readonly users = {
@@ -426,6 +448,19 @@ export default class Client {
         method: listUsers.method,
         query: pick(args, listUsers.queryParams),
         body: pick(args, listUsers.bodyParams),
+        auth: args?.auth,
+      })
+    },
+
+    /**
+     * Get details about bot
+     */
+    me: (args: WithAuth<GetSelfParameters>): Promise<GetSelfResponse> => {
+      return this.request<GetSelfResponse>({
+        path: getSelf.path(),
+        method: getSelf.method,
+        query: pick(args, getSelf.queryParams),
+        body: pick(args, getSelf.bodyParams),
         auth: args?.auth,
       })
     },
